@@ -31,9 +31,9 @@ import java.io.PrintStream;
 // TODO: &apos; -> '
 
 public class XML {
-	XML.Sequence seq; /* entire buffer */
-	XML.Sequence tag; /* most recent tag */
-	XML.Sequence tmp; /* for content return */
+	XMLSequence seq; /* entire buffer */
+	XMLSequence tag; /* most recent tag */
+	XMLSequence tmp; /* for content return */
 	char[] xml;
 	int offset;
 	int count;
@@ -47,9 +47,9 @@ public class XML {
 	CharBuffer buf;
 
 	public XML(int size) {
-		seq = new XML.Sequence();
-		tag = new XML.Sequence();
-		tmp = new XML.Sequence();
+		seq = new XMLSequence();
+		tag = new XMLSequence();
+		tmp = new XMLSequence();
 		mTag = pTag.matcher(seq);
 		mEntity = pEntity.matcher(tmp);
 		mAttr = pAttr.matcher(tmp);
@@ -64,7 +64,7 @@ public class XML {
 		buf.flip();
 		reset();
 	}
-	public void init(XML.Sequence s) {
+	public void init(XMLSequence s) {
 		buf.clear();
 		buf.put(s.data, s.offset, s.count);
 		buf.flip();
@@ -82,53 +82,8 @@ public class XML {
 		offset = 0;
 		nextTag();
 	}
-
-	/* modifies the sequence in-place, escaping basic entities */
-	public XML.Sequence unescape(XML.Sequence s) {
-		s.count = unescape(s, s.data, s.offset) - s.offset;
-		return s;
-	}
-
-	/* copies the sequence into a char[] + offset, escaping basic entities */
-	public int unescape(XML.Sequence s, char[] out, int off) {
-		char[] in = s.data;
-		int n = s.offset;
-		int max = n + s.count;
-
-		while (n < max) {
-			char c = in[n++];
-			if (c != '&') {
-				out[off++] = c;
-				continue;
-			}
-			int e = n;
-			while (n < max) {
-				if (in[n++] != ';')
-					continue;
-				switch(in[e]) {
-				case 'l': // lt
-					out[off++] = '<';
-					break;
-				case 'g': // gt
-					out[off++] = '>';
-					break;
-				case 'q': // quot
-					out[off++] = '"';
-					break;
-				case 'a': // amp | apos
-					if (in[e+1] == 'm')
-						out[off++] = '&';
-					else if (in[e+1] == 'p')
-						out[off++] = '\'';
-					break;
-				}
-				break;
-			}
-		}
-		return off;
-	}
-		
-	public XML.Sequence getAttr(String name) {
+	
+	public XMLSequence getAttr(String name) {
 		int off = mTag.start(3);
 		int end = off + mTag.end(3);
 
@@ -154,7 +109,7 @@ public class XML {
 	/* set sequence to the text between the end of the current tag
 	 * and the beginning of the next tag.
 	 */
-	public XML.Sequence getText() {
+	public XMLSequence getText() {
 		char[] data = xml;
 		int n;
 		tmp.data = data;
@@ -177,7 +132,7 @@ public class XML {
 		print(out, max, 0, buf);
 	}
 	void print(PrintStream out, int max, int indent, char[] buf) {
-		XML.Sequence s;
+		XMLSequence s;
 		int n;
 		if (!isOpen) {
 			out.println("ERROR");
@@ -199,10 +154,10 @@ public class XML {
 		} else {
 			if (s.count > max) {
 				s.count = max;
-				n = unescape(s, buf, 0);
+				n = s.unescape(buf, 0);
 				out.println("" + new String(buf, 0, n) + "..." + str());
 			} else {
-				n = unescape(s, buf, 0);
+				n = s.unescape(buf, 0);
 				out.println("" + new String(buf, 0, n) + str());
 			}
 		}	
@@ -228,7 +183,7 @@ public class XML {
 	}
 
 	/* require <tag> text </tag> and return text */
-	public XML.Sequence read(String name) throws XML.Oops {
+	public XMLSequence read(String name) throws XML.Oops {
 		int start = mTag.end(); 
 		open(name);
 		tmp.adjust(start, mTag.start());
@@ -237,7 +192,7 @@ public class XML {
 	}
 
 	/* read the next  <name> value </name>  returns false if no open tag */
-	public boolean tryRead(XML.Sequence name, XML.Sequence value) throws XML.Oops {
+	public boolean tryRead(XMLSequence name, XMLSequence value) throws XML.Oops {
 		if (!isOpen)
 			return false;
 
@@ -255,7 +210,7 @@ public class XML {
 
 		return true;
 	}
-	public void close(XML.Sequence name) throws XML.Oops {
+	public void close(XMLSequence name) throws XML.Oops {
 		if (isOpen)
 			throw new XML.Oops("1expected </"+name+">, found <"+tag+">");
 		if (!name.eq(tag))
@@ -263,7 +218,7 @@ public class XML {
 		nextTag();
 	}
 
-	public boolean tryRead(String name, XML.Sequence value) throws XML.Oops {
+	public boolean tryRead(String name, XMLSequence value) throws XML.Oops {
 		if (!isOpen || !name.contentEquals(tag))
 			return false;
 		value.data = xml;
@@ -317,77 +272,6 @@ public class XML {
 	static public class Oops extends Exception {
 		public Oops(String msg) {
 			super(msg);
-		}
-	}
-
-	static class Sequence implements CharSequence {
-		private char[] data;
-		private int offset;
-		private int count;
-
-		public Sequence() {
-		}
-
-		void init(char[] data, int start, int end) {
-			this.data = data;
-			offset = start;
-			count = end - start;
-		}
-		void adjust(int start, int end) {
-			offset = start;
-			count = end - start;
-		}
-		boolean eq(Sequence other) {
-			int count = this.count;
-			if (count != other.count)
-				return false;
-			char[] a = this.data;
-			int ao = this.offset;
-			char[] b = other.data;
-			int bo = other.offset;
-			while (count-- > 0)
-				if (a[ao++] != b[bo++])
-					return false;
-			return true;
-		}
-		CharSequence copy() {
-			Sequence s = new Sequence();
-			s.init(data, offset, offset + count);
-			return s;
-		}
-		void trim() {
-			while (count > 0) {
-				char c = data[offset];
-				if ((c==' ')||(c=='\r')||(c=='\n')||(c=='\t')) {
-					offset++;
-					count--;
-					continue;
-				}
-				c = data[offset + count - 1];
-				if ((c==' ')||(c=='\r')||(c=='\n')||(c=='\t')) {
-					count--;
-					continue;
-				}
-				break;
-			}
-		}
-				
-		/* CharSequence interface */
-		public int length() {
-			return count;
-		}
-		public char charAt(int index) {
-			//System.err.print("["+data[offset+index]+"]");
-			return data[offset + index];
-		}
-		public CharSequence subSequence(int start, int end) {
-			//System.err.println("[subSequence("+start+","+end+")]");
-			Sequence x = new Sequence();
-			x.init(data, offset + start, offset + end);
-			return x;
-		}
-		public String toString() {
-			return new String(data, offset, count);
 		}
 	}
 }

@@ -111,11 +111,11 @@ public class Sonos {
 			"<SortCriteria></SortCriteria>"
 			);
 		try {
-			XML.Sequence name = new XML.Sequence();
-			XML.Sequence value = new XML.Sequence();
+			XMLSequence name = new XMLSequence();
+			XMLSequence value = new XMLSequence();
 			xml.open("u:BrowseResponse");
-			XML.Sequence tmp = xml.read("Result");	
-			xml.unescape(tmp);
+			XMLSequence tmp = xml.read("Result");	
+			tmp.unescape();
 			//System.out.println(tmp);
 			result.init(tmp);
 
@@ -144,11 +144,11 @@ public class Sonos {
 				}
 				while (result.tryRead(name,value)) {
 					if ("dc:title".contentEquals(name)) {
-						title = xml.unescape(value).copy();
+						title = value.unescape().copy();
 						continue;
 					}
 					if ("upnp:album".contentEquals(name)) {
-						album = xml.unescape(value).copy();
+						album = value.unescape().copy();
 						continue;
 					}
 					if ("res".contentEquals(name)) {

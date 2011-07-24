@@ -23,7 +23,9 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 class SoapRPC {
-	public boolean trace;
+	public boolean trace_io;
+	public boolean trace_reply;
+
 	InetAddress addr;
 	int port;
 	ByteBuffer reply;
@@ -55,7 +57,7 @@ class SoapRPC {
 			}
 			reply.limit(off);
 			s.close();
-			if (trace) {
+			if (trace_io) {
 				System.out.println("--------- reply -----------");
 				System.out.println(new String(buf, 0, off));
 			}
@@ -93,7 +95,7 @@ class SoapRPC {
 		sb.append("\"\r\n\r\n");
 		sb.append(msg);
 
-		if (trace) {
+		if (trace_io) {
 			System.out.println("--------- message -----------");
 			System.out.println(sb);
 		}
@@ -104,6 +106,11 @@ class SoapRPC {
 
 		xml.init(reply);
 		try {
+			if (trace_reply) {
+				System.out.println("--------- reply -----------");
+				xml.print(System.out,64);
+				xml.rewind();
+			}
 			xml.open("s:Envelope");
 			xml.open("s:Body");
 			return xml;

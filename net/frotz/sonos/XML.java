@@ -26,6 +26,8 @@ import java.nio.CharBuffer;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
+import java.io.PrintStream;
+
 // TODO: &apos; -> '
 
 public class XML {
@@ -76,44 +78,54 @@ public class XML {
 		nextTag();
 		System.err.println("XML reset, "+buf.length()+" bytes.");
 	}
+	public void rewind() {
+		offset = 0;
+		nextTag();
+	}
+
+	/* modifies the sequence in-place, escaping basic entities */
 	public XML.Sequence unescape(XML.Sequence s) {
+		s.count = unescape(s, s.data, s.offset) - s.offset;
+		return s;
+	}
+
+	/* copies the sequence into a char[] + offset, escaping basic entities */
+	public int unescape(XML.Sequence s, char[] out, int off) {
+		char[] in = s.data;
 		int n = s.offset;
 		int max = n + s.count;
-		char data[] = s.data;
-		int out = n;
 
 		while (n < max) {
-			char c = data[n++];
+			char c = in[n++];
 			if (c != '&') {
-				data[out++] = c;
+				out[off++] = c;
 				continue;
 			}
 			int e = n;
 			while (n < max) {
-				if (data[n++] != ';')
+				if (in[n++] != ';')
 					continue;
-				switch(data[e]) {
+				switch(in[e]) {
 				case 'l': // lt
-					data[out++] = '<';
+					out[off++] = '<';
 					break;
 				case 'g': // gt
-					data[out++] = '>';
+					out[off++] = '>';
 					break;
 				case 'q': // quot
-					data[out++] = '"';
+					out[off++] = '"';
 					break;
 				case 'a': // amp | apos
-					if (data[e+1] == 'm')
-						data[out++] = '&';
-					else if (data[e+1] == 'p')
-						data[out++] = '\'';
+					if (in[e+1] == 'm')
+						out[off++] = '&';
+					else if (in[e+1] == 'p')
+						out[off++] = '\'';
 					break;
 				}
 				break;
 			}
 		}
-		s.count = out - s.offset;
-		return s;
+		return off;
 	}
 		
 	public XML.Sequence getAttr(String name) {
@@ -137,6 +149,64 @@ public class XML {
 			off = mAttr.end();
 		}
 		return null;
+	}
+
+	/* set sequence to the text between the end of the current tag
+	 * and the beginning of the next tag.
+	 */
+	public XML.Sequence getText() {
+		char[] data = xml;
+		int n;
+		tmp.data = data;
+		n = tmp.offset = mTag.end();
+		try {
+			for (;;) {
+				if (data[n] == '<')
+					break;
+				n++;
+			}
+			tmp.count = n - tmp.offset;
+		} catch (ArrayIndexOutOfBoundsException x) {
+			tmp.count = 0;
+		}
+		return tmp;
+	}
+
+	public void print(PrintStream out, int max) {
+		char[] buf = new char[max];
+		print(out, max, 0, buf);
+	}
+	void print(PrintStream out, int max, int indent, char[] buf) {
+		XML.Sequence s;
+		int n;
+		if (!isOpen) {
+			out.println("ERROR");
+			return;
+		}
+		for (n = 0; n < indent; n++)
+			out.print(" ");
+		out.print(str());
+		s = getText();
+		nextTag();
+		if (isOpen) {
+			out.print("\n");
+			do {
+				print(out, max, indent + 2, buf);
+			} while (isOpen);
+			for (n = 0; n < indent; n++)
+				out.print(" ");
+			out.println(str());
+		} else {
+			if (s.count > max) {
+				s.count = max;
+				n = unescape(s, buf, 0);
+				out.println("" + new String(buf, 0, n) + "..." + str());
+			} else {
+				n = unescape(s, buf, 0);
+				out.println("" + new String(buf, 0, n) + str());
+			}
+		}	
+		nextTag();
 	}
 
 	public boolean more() {
@@ -285,7 +355,23 @@ public class XML {
 			s.init(data, offset, offset + count);
 			return s;
 		}
-
+		void trim() {
+			while (count > 0) {
+				char c = data[offset];
+				if ((c==' ')||(c=='\r')||(c=='\n')||(c=='\t')) {
+					offset++;
+					count--;
+					continue;
+				}
+				c = data[offset + count - 1];
+				if ((c==' ')||(c=='\r')||(c=='\n')||(c=='\t')) {
+					count--;
+					continue;
+				}
+				break;
+			}
+		}
+				
 		/* CharSequence interface */
 		public int length() {
 			return count;

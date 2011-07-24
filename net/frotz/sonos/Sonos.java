@@ -17,6 +17,7 @@
 package net.frotz.sonos;
 
 public class Sonos {
+	boolean trace_browse;
 	SoapRPC.Endpoint xport;
 	SoapRPC.Endpoint media;
 	SoapRPC.Endpoint render;
@@ -35,9 +36,11 @@ public class Sonos {
 			"RenderingControl:1",
 			"/MediaRenderer/RenderingControl/Control");
 	}
-	public void debug(boolean x) {
-		rpc.trace = x;
-	}
+
+	public void trace_io(boolean x) { rpc.trace_io = x; }
+	public void trace_reply(boolean x) { rpc.trace_reply = x; }
+	public void trace_browse(boolean x) { trace_browse = x; }
+
 	public void volume() {
 		rpc.call(render,"GetVolume",
 			"<InstanceID>0</InstanceID>"+
@@ -116,6 +119,11 @@ public class Sonos {
 			//System.out.println(tmp);
 			result.init(tmp);
 
+			if (trace_browse) {
+				System.out.println("--------- list -----------");
+				result.print(System.out,1024);
+				result.rewind();
+			}
 			System.err.println("Count = " + xml.read("NumberReturned"));
 			System.err.println("Total = " + xml.read("TotalMatches"));
 			System.err.println("UpdID = " + xml.read("UpdateID"));

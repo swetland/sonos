@@ -21,7 +21,9 @@ public class app {
 		Sonos sonos = new Sonos(new byte[] { 10, 0, 0, (byte) 199});
 		String cmd = args[0];
 
-//		sonos.debug(true);
+		//sonos.trace_io(true);
+		sonos.trace_reply(true);
+		sonos.trace_browse(true);
 
 		if (cmd.equals("play")) {
 			sonos.play();

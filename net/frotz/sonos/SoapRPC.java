@@ -20,91 +20,159 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.io.InputStream;
 import java.io.OutputStream;
+
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CoderResult;
 
 class SoapRPC {
+	static Charset cs = Charset.forName("UTF-8");
+
 	public boolean trace_io;
 	public boolean trace_reply;
 
+	/* actual host to communicate with */
 	InetAddress addr;
 	int port;
-	ByteBuffer reply;
+
+	/* XML object for reply */
 	XML xml;
 
+	/* io buffer */
+	ByteBuffer bb;
+
+	/* assembly buffers for rpc header and message */
+	StringBuilder hdr;
+	StringBuilder msg;
+
+	CharsetEncoder encoder;
+
+	/* hold remote information while assembling message */
+	String xmethod, xservice, xpath;
+
 	public SoapRPC(byte[] host, int port) {
+		init(host,port);
+	}
+
+	void init(byte[] host, int port) {
 		try {
 			addr = InetAddress.getByAddress(host);
 		} catch (Exception x) {
 		}
 		this.port = port;
 
-		reply = ByteBuffer.wrap(new byte[32768]);
+		encoder = cs.newEncoder();
+
+		bb = ByteBuffer.wrap(new byte[32768]);
 		xml = new XML(32768);
+		hdr = new StringBuilder(2048);
+		msg = new StringBuilder(8192);
 	}
-	void call(byte[] data) {
+
+
+	void call() {
+		CharBuffer hdrbuf;
+		CharBuffer msgbuf;
+		CoderResult cr;
+		int off, r;
+		byte[] buf;
 		try {
-			reply.clear();
-			byte[] buf = reply.array();
 			Socket s = new Socket(addr,port);
 			OutputStream out = s.getOutputStream();
 			InputStream in = s.getInputStream();
-			out.write(data);
-			int off = 0;
-			for (;;) {
-				int r = in.read(buf, off, buf.length - off);
-				if (r <= 0) break;
-				off += r;
+
+			if (trace_io) {
+				System.err.println("--------- xmit -----------");
+				System.err.print(hdr);
+				System.err.print(msg);
 			}
-			reply.limit(off);
+
+ 			buf = bb.array();
+
+			/* to keep things simple, the headers must fit in one pass */
+			bb.clear();
+			encoder.reset();
+			hdrbuf = CharBuffer.wrap(hdr);
+			cr = encoder.encode(hdrbuf, bb, false);
+			if (cr != CoderResult.UNDERFLOW)
+				throw new Exception("encoder failed (1)");	
+
+			msgbuf = CharBuffer.wrap(msg);
+			do {
+				cr = encoder.encode(msgbuf, bb, true);
+				if (cr.isError())
+					throw new Exception("encoder failed (2)");
+				out.write(buf, 0, bb.position());
+				bb.clear();
+			} while (cr == CoderResult.OVERFLOW);
+
+
+			/* read reply */
+			for (off = 0;;off += r) {
+				r = in.read(buf, off, buf.length-off);
+				if (r <= 0)
+					break;
+			}
+			bb.limit(off);
+
 			s.close();
 			if (trace_io) {
-				System.out.println("--------- reply -----------");
-				System.out.println(new String(buf, 0, off));
+				System.err.println("--------- recv -----------");
+				System.err.println(new String(buf, 0, off));
+				System.err.println("--------- done -----------");
 			}
 		} catch (Exception x) {
 			System.out.println("OOPS: " + x.getMessage());
 			x.printStackTrace();
 		}
 	}
-	public XML call(Endpoint ept, String method, String payload) {
-		StringBuilder msg = new StringBuilder();
-		msg.append("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body>");
-		msg.append("<u:");
-		msg.append(method);
+
+	public void prepare(Endpoint ept, String method) {
+		xmethod = method;
+		xservice = ept.service;
+		xpath = ept.path;
+
+		msg.setLength(0);
+
+		/* setup message envelope/prefix */	
+		msg.append("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:");
+		msg.append(xmethod);
 		msg.append(" xmlns:u=\"urn:schemas-upnp-org:service:");
-		msg.append(ept.service);
-		msg.append("\">");
-		msg.append(payload);
+		msg.append(xservice);
+		msg.append("\">\n");
+	}
+
+	public XML invoke() {
+		if (xmethod == null)
+			throw new RuntimeException("cannot invoke before prepare");
+
+		/* close the envelope */
 		msg.append("</u:");
-		msg.append(method);
+		msg.append(xmethod);
 		msg.append("></s:Body></s:Envelope>\n");
 
-		StringBuilder sb = new StringBuilder();
-		sb.append("POST ");
-		sb.append(ept.path);
-		sb.append(" HTTP/1.0\r\n");
-		sb.append("CONNECTION: close\r\n");
-		sb.append("Content-Type: text/xml; charset=\"utf-8\"\r\n");
-		sb.append("Content-Length: ");
-		sb.append(msg.length());
-		sb.append("\r\n");
-		sb.append("SOAPACTION: \"urn:schemas-upnp-org:service:");
-		sb.append(ept.service);
-		sb.append("#");
-		sb.append(method);
-		sb.append("\"\r\n\r\n");
-		sb.append(msg);
+		/* build HTTP headers */	
+		hdr.append("POST ");
+		hdr.append(xpath);
+		hdr.append(" HTTP/1.0\r\n"+"CONNECTION: close\r\n"+
+			"Content-Type: text/xml; charset=\"utf-8\"\r\n"+
+			"Content-Length: ");
+		hdr.append(msg.length());
+		hdr.append("\r\n"+"SOAPACTION: \"urn:schemas-upnp-org:service:");
+		hdr.append(xservice);
+		hdr.append("#");
+		hdr.append(xmethod);
+		hdr.append("\"\r\n\r\n");
 
-		if (trace_io) {
-			System.out.println("--------- message -----------");
-			System.out.println(sb);
-		}
+		xmethod = null;
 
-		byte[] data = sb.toString().getBytes();
+		call();
 
-		call(data);
-
-		xml.init(reply);
+		xml.init(bb);
 		try {
 			if (trace_reply) {
 				System.out.println("--------- reply -----------");
@@ -118,6 +186,58 @@ class SoapRPC {
 			return null;
 		}
 	}
+
+	public SoapRPC openTag(String name) {
+		msg.append('<');
+		msg.append(name);
+		msg.append('>');
+		return this;
+	}
+	public SoapRPC closeTag(String name) {
+		msg.append('<');
+		msg.append('/');
+		msg.append(name);
+		msg.append('>');
+		return this;
+	}
+	public SoapRPC simpleTag(String name, int value) {
+		openTag(name);
+		msg.append(value);
+		closeTag(name);
+		return this;
+	}
+	public SoapRPC simpleTag(String name, String value) {
+		openTag(name);
+		encode(value);
+		closeTag(name);
+		return this;
+	}
+	public SoapRPC encode(CharSequence csq) {
+		int n, max = csq.length();
+		char c;
+		for (n = 0; n < max; n++) {
+			switch((c = csq.charAt(n))) {
+			case '<':
+				msg.append("&lt;");
+				break;
+			case '>':
+				msg.append("&gt;");
+				break;
+			case '&':
+				msg.append("&amp;");
+				break;
+			case '"':
+				msg.append("&quot;");
+				break;
+			case '\'':
+				msg.append("&apos;");
+				break;
+			default:
+				msg.append(c);
+			}
+		}
+		return this;
+	}
 	public static class Endpoint {
 		String service,path;
 		public Endpoint(String service, String path) {
@@ -126,3 +246,4 @@ class SoapRPC {
 		}
 	}
 }
+

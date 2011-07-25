@@ -95,7 +95,7 @@ class XMLSequence implements CharSequence {
 		return off;
 	}
 	
-	CharSequence copy() {
+	public CharSequence copy() {
 		XMLSequence s = new XMLSequence();
 		s.init(data, offset, offset + count);
 		return s;

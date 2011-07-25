@@ -21,7 +21,7 @@ public class app {
 		Sonos sonos = new Sonos(new byte[] { 10, 0, 0, (byte) 199});
 		String cmd = args[0];
 
-		//sonos.trace_io(true);
+		sonos.trace_io(true);
 		sonos.trace_reply(true);
 		sonos.trace_browse(true);
 
@@ -44,9 +44,9 @@ public class app {
 		} else if (cmd.equals("removeall")) {
 			sonos.removeAll();
 		} else if (cmd.equals("move")) {
-			sonos.move(args[1],args[2]);
+			sonos.move(Integer.parseInt(args[1]),Integer.parseInt(args[2]));
 		} else if (cmd.equals("track")) {
-			sonos.seekTrack(args[1]);
+			sonos.seekTrack(Integer.parseInt(args[1]));
 		} else if (cmd.equals("volume")) {
 			if (args.length == 1)
 				sonos.volume();

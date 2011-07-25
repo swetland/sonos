@@ -16,14 +16,21 @@
 
 package net.frotz.sonos;
 
+/* not thread-safe, not reentrant */
 public class Sonos {
 	boolean trace_browse;
 	SoapRPC.Endpoint xport;
 	SoapRPC.Endpoint media;
 	SoapRPC.Endpoint render;
 	SoapRPC rpc;
+	XML result;
 
 	public Sonos(byte[] ip) {
+		init(ip);
+	}
+
+	void init(byte[] ip) {
+		result = new XML(32768);
 		rpc = new SoapRPC(ip, 1400);
 
 		xport = new SoapRPC.Endpoint(
@@ -41,75 +48,108 @@ public class Sonos {
 	public void trace_reply(boolean x) { rpc.trace_reply = x; }
 	public void trace_browse(boolean x) { trace_browse = x; }
 
+	/* volume controls */
 	public void volume() {
-		rpc.call(render,"GetVolume",
-			"<InstanceID>0</InstanceID>"+
-			"<Channel>Master</Channel>" // Master | LF | RF
-			);
+		rpc.prepare(render,"GetVolume");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("Channel", "Master"); // Master | LF | RF
+		rpc.invoke();
 	}
 	public void volume(int vol) { // 0-100
 		if ((vol < 0) || (vol > 100))
 			return;
-		rpc.call(render,"SetVolume",
-			"<InstanceID>0</InstanceID>"+
-			"<Channel>Master</Channel>"+
-			"<DesiredVolume>"+vol+"</DesiredVolume>"
-			);
+		rpc.prepare(render,"SetVolume");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("Channel","Master");
+		rpc.simpleTag("DesiredVolume",vol);
+		rpc.invoke();
 	}
+
+	/* transport controls */
 	public void play() {
-		rpc.call(xport,"Play","<InstanceID>0</InstanceID><Speed>1</Speed>");
+		rpc.prepare(xport,"Play");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("Speed",1);
+		rpc.invoke();
 	}
 	public void pause() {
-		rpc.call(xport,"Pause","<InstanceID>0</InstanceID>");
+		rpc.prepare(xport,"Pause");
+		rpc.simpleTag("InstanceID",0);
+		rpc.invoke();
 	}
 	public void stop() {
-		rpc.call(xport,"Stop","<InstanceID>0</InstanceID>");
+		rpc.prepare(xport,"Stop");
+		rpc.simpleTag("InstanceID",0);
+		rpc.invoke();
 	}
 	public void next() {
-		rpc.call(xport,"Next","<InstanceID>0</InstanceID>");
-	}
-	public void seekTrack(String nr) {
-		rpc.call(xport,"Seek","<InstanceID>0</InstanceID><Unit>TRACK_NR</Unit><Target>"+nr+"</Target>");
-		// does not start playing if not already in playback mode
+		rpc.prepare(xport,"Next");
+		rpc.simpleTag("InstanceID",0);
+		rpc.invoke();
 	}
 	public void prev() {
-		rpc.call(xport,"Previous","<InstanceID>0</InstanceID>");
+		rpc.prepare(xport,"Previous");
+		rpc.simpleTag("InstanceID",0);
+		rpc.invoke();
+	}
+	public void seekTrack(int nr) {
+		if (nr < 1)
+			return;	
+		rpc.prepare(xport,"Seek");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("Unit","TRACK_NR");
+		rpc.simpleTag("Target",nr);
+		rpc.invoke();
+		// does not start playing if not already in playback mode
+	}
+
+	/* queue management */
+	public void add(String uri) {
+		rpc.prepare(xport,"AddURIToQueue");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("EnqueuedURI",uri);
+		rpc.simpleTag("EnqueuedURIMetaData","");
+		rpc.simpleTag("DesiredFirstTrackNumberEnqueued",0);
+		rpc.simpleTag("EnqueueAsNext",0); // 0 = append, 1+ = insert
+		rpc.invoke();
 	}
 	public void remove(String id) {
-		rpc.call(xport,"RemoveTrackFromQueue","<InstanceID>0</InstanceID><ObjectID>"+id+"</ObjectID>");
+		rpc.prepare(xport,"RemoveTrackFromQueue");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("ObjectID",id);
+		rpc.invoke();
 	}
 	public void removeAll() {
-		rpc.call(xport,"RemoveAllTracksFromQueue","<InstanceID>0</InstanceID>");
+		rpc.prepare(xport,"RemoveAllTracksFromQueue");
+		rpc.simpleTag("InstanceID",0);
+		rpc.invoke();
 	}
-	public void add(String uri) {
-		rpc.call(xport,"AddURIToQueue",
-			"<InstanceID>0</InstanceID>"+
-			"<EnqueuedURI>"+uri+"</EnqueuedURI>"+  // from <res> x-file-cifs... etc
-			"<EnqueuedURIMetaData></EnqueuedURIMetaData>"+
-			"<DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued>"+
-			"<EnqueueAsNext>0</EnqueueAsNext>" // 0 = append, 1-n = insert
-		);
+	public void move(int from, int to) {
+		if ((from < 1) || (to < 1))
+			return;
+		rpc.prepare(xport,"ReorderTracksInQueue");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("StartingIndex",from);
+		rpc.simpleTag("NumberOfTracks",1);
+		rpc.simpleTag("InsertBefore",to);
+		rpc.invoke();
 	}
-	public void move(String from, String to) {
-		rpc.call(xport,"ReorderTracksInQueue",
-			"<InstanceID>0</InstanceID>"+
-			"<StartingIndex>"+from+"</StartingIndex>"+
-			"<NumberOfTracks>1</NumberOfTracks>"+
-			"<InsertBefore>"+to+"</InsertBefore>"
-			);
-	}
+
+	/* content service calls */
 	public void list(String _id, boolean d) {
 		int n = 0;
-		XML result = new XML(32768);
-		XML xml = rpc.call(media,"Browse",
-			"<ObjectID>"+_id+"</ObjectID>"+
-			(!d ? "<BrowseFlag>BrowseMetadata</BrowseFlag>" : 
-			"<BrowseFlag>BrowseDirectChildren</BrowseFlag>" )+
-			"<Filter></Filter>"+
-			"<StartingIndex>" + n + "</StartingIndex>"+
-			"<RequestedCount>25</RequestedCount>"+
-			"<SortCriteria></SortCriteria>"
-			);
+		XML xml;
+
+		rpc.prepare(media,"Browse");
+		rpc.simpleTag("ObjectID",_id);
+		rpc.simpleTag("BrowseFlag",
+			(d ? "BrowseDirectChildren" : "BrowseMetadata"));
+		rpc.simpleTag("Filter","");
+		rpc.simpleTag("StartingIndex", n);
+		rpc.simpleTag("RequestedCount",25);
+		rpc.simpleTag("SortCriteria","");
+		xml = rpc.invoke();
+
 		try {
 			XMLSequence name = new XMLSequence();
 			XMLSequence value = new XMLSequence();

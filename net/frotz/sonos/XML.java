@@ -43,10 +43,13 @@ public class XML {
 	Matcher mAttr;
 	boolean isOpen;
 
+	CharsetDecoder decoder;
+
 	/* used for io operations */
 	CharBuffer buf;
 
 	public XML(int size) {
+		decoder = cs.newDecoder();
 		seq = new XMLSequence();
 		tag = new XMLSequence();
 		tmp = new XMLSequence();
@@ -267,7 +270,6 @@ public class XML {
 	static Pattern pEntity = Pattern.compile("([^&]*)(&([^;]*);)");
 
 	static Charset cs = Charset.forName("UTF-8");
-	static CharsetDecoder decoder = cs.newDecoder();
 
 	static public class Oops extends Exception {
 		public Oops(String msg) {

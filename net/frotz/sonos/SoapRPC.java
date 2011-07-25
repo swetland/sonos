@@ -32,6 +32,7 @@ import java.nio.charset.CoderResult;
 class SoapRPC {
 	static Charset cs = Charset.forName("UTF-8");
 
+	static final int MAXIO = 256*1024;
 	public boolean trace_io;
 	public boolean trace_reply;
 
@@ -67,8 +68,8 @@ class SoapRPC {
 
 		encoder = cs.newEncoder();
 
-		bb = ByteBuffer.wrap(new byte[32768]);
-		xml = new XML(32768);
+		bb = ByteBuffer.wrap(new byte[MAXIO]);
+		xml = new XML(MAXIO);
 		hdr = new StringBuilder(2048);
 		msg = new StringBuilder(8192);
 	}
@@ -137,6 +138,7 @@ class SoapRPC {
 		xpath = ept.path;
 
 		msg.setLength(0);
+		hdr.setLength(0);
 
 		/* setup message envelope/prefix */	
 		msg.append("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:");

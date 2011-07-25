@@ -23,14 +23,18 @@ public class Sonos {
 	SoapRPC.Endpoint media;
 	SoapRPC.Endpoint render;
 	SoapRPC rpc;
-	XML result;
+	XMLSequence name, value;
+	SonosItem item;
 
 	public Sonos(byte[] ip) {
 		init(ip);
 	}
 
 	void init(byte[] ip) {
-		result = new XML(32768);
+		name = new XMLSequence();
+		value = new XMLSequence();
+		item = new SonosItem();
+
 		rpc = new SoapRPC(ip, 1400);
 
 		xport = new SoapRPC.Endpoint(
@@ -136,79 +140,84 @@ public class Sonos {
 	}
 
 	/* content service calls */
-	public void list(String _id, boolean d) {
+	public void browse(String _id, SonosListener cb) {
+		int total, count, updateid;
 		int n = 0;
 		XML xml;
 
-		rpc.prepare(media,"Browse");
-		rpc.simpleTag("ObjectID",_id);
-		rpc.simpleTag("BrowseFlag",
-			(d ? "BrowseDirectChildren" : "BrowseMetadata"));
-		rpc.simpleTag("Filter","");
-		rpc.simpleTag("StartingIndex", n);
-		rpc.simpleTag("RequestedCount",25);
-		rpc.simpleTag("SortCriteria","");
-		xml = rpc.invoke();
+		do {
+			rpc.prepare(media,"Browse");
+			rpc.simpleTag("ObjectID",_id);
+			rpc.simpleTag("BrowseFlag","BrowseDirectChildren"); // BrowseMetadata
+			rpc.simpleTag("Filter","");
+			rpc.simpleTag("StartingIndex", n);
+			rpc.simpleTag("RequestedCount",100);
+			rpc.simpleTag("SortCriteria","");
 
-		try {
-			XMLSequence name = new XMLSequence();
-			XMLSequence value = new XMLSequence();
-			xml.open("u:BrowseResponse");
-			XMLSequence tmp = xml.read("Result");	
-			tmp.unescape();
-			//System.out.println(tmp);
-			result.init(tmp);
+			xml = rpc.invoke();
+			try {
+				xml.open("u:BrowseResponse");
+				value.init(xml.read("Result"));
 
-			if (trace_browse) {
-				System.out.println("--------- list -----------");
-				result.print(System.out,1024);
-				result.rewind();
+				// Eww, toString()? really? surely there's
+				// a non-allocating Int parser somewhere
+				// in the bloat that is java standard libraries?
+				count = Integer.parseInt(xml.read("NumberReturned").toString());
+				total = Integer.parseInt(xml.read("TotalMatches").toString());
+				updateid = Integer.parseInt(xml.read("UpdateID").toString());
+
+				/* descend in to the contained results */
+				value.unescape();
+				xml.init(value);
+				n += processBrowseResults(xml,_id,cb);
+			} catch (Exception x) {
+				System.err.println("OOPS " + x);
+				x.printStackTrace();
+				break;
 			}
-			System.err.println("Count = " + xml.read("NumberReturned"));
-			System.err.println("Total = " + xml.read("TotalMatches"));
-			System.err.println("UpdID = " + xml.read("UpdateID"));
-
-			result.open("DIDL-Lite");
-			while (result.more()) {
-				n++;
-				CharSequence id = result.getAttr("id").copy();
-				CharSequence title = "";
-				CharSequence album = "";
-				CharSequence res = "";
-				String thing = "item";	
-				try { 
-					result.open("item");
-				} catch (XML.Oops x) {
-					result.open("container"); // yuck!
-					thing = "container";
-				}
-				while (result.tryRead(name,value)) {
-					if ("dc:title".contentEquals(name)) {
-						title = value.unescape().copy();
-						continue;
-					}
-					if ("upnp:album".contentEquals(name)) {
-						album = value.unescape().copy();
-						continue;
-					}
-					if ("res".contentEquals(name)) {
-						res = value.copy();
-						continue;
-					}
-				}
-				if (thing == "item")
-					System.err.println("Item:       " + n);
-				else
-					System.err.println("Item:       " + id);
-				System.out.println("  Title:    " + title);
-				if (album.length() > 0)
-					System.out.println("  Album:    " + album);
-				System.out.println("  Resource: " + res);
-				result.close(thing);
-			}
-		} catch (XML.Oops x) {
-			System.err.println("OOPS: " + x.getMessage());
-			x.printStackTrace();
+		} while (n < total);
+	}
+	int processBrowseResults(XML result, String _id, SonosListener cb) throws XML.Oops {
+		SonosItem item = this.item;
+		int n = 0;
+		if (trace_browse) {
+			System.out.println("--------- list -----------");
+			result.print(System.out,1024);
+			result.rewind();
 		}
+		result.open("DIDL-Lite");
+		while (result.more()) {
+			String thing;
+			n++;
+			item.idURI = result.getAttr("id").copy();
+			try { 
+				result.open("item");
+				thing = "item";	
+			} catch (XML.Oops x) {
+				result.open("container"); // yuck!
+				thing = "container";
+			}
+			while (result.tryRead(name,value)) {
+				if ("dc:title".contentEquals(name)) {
+					item.title = value.unescape().copy();
+					continue;
+				}
+				if ("dc:creator".contentEquals(name)) {
+					item.artist = value.unescape().copy();
+					continue;
+				}
+				if ("upnp:album".contentEquals(name)) {
+					item.album = value.unescape().copy();
+					continue;
+				}
+				if ("res".contentEquals(name)) {
+					item.playURI = value.unescape().copy();
+					continue;
+				}
+			}
+			cb.updateItem(_id, n, item);
+			result.close(thing);
+		}
+		return n;
 	}
 }

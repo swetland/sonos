@@ -16,16 +16,19 @@
 
 package net.frotz.sonos;
 
-public class app {
+public class app implements SonosListener {
 	public static void main(String args[]) {
+		app a = new app();
 		Sonos sonos = new Sonos(new byte[] { 10, 0, 0, (byte) 199});
 		String cmd = args[0];
 
-		sonos.trace_io(true);
-		sonos.trace_reply(true);
-		sonos.trace_browse(true);
+		//sonos.trace_io(true);
+		//sonos.trace_reply(true);
+		//sonos.trace_browse(true);
 
 		if (cmd.equals("play")) {
+			sonos.play();
+			sonos.play();
 			sonos.play();
 		} else if (cmd.equals("pause")) {
 			sonos.pause();
@@ -34,9 +37,7 @@ public class app {
 		} else if (cmd.equals("prev")) {
 			sonos.prev();
 		} else if (cmd.equals("list")) {
-			sonos.list(args[1],true);
-		} else if (cmd.equals("dump")) {
-			sonos.list(args[1],false);
+			sonos.browse(args[1],a);
 		} else if (cmd.equals("add")) {
 			sonos.add(args[1]);
 		} else if (cmd.equals("remove")) {
@@ -56,5 +57,14 @@ public class app {
 			System.err.println("Unknown command '"+cmd+"'");
 			System.exit(-1);
 		}
+	}
+	public void updateItem(String id, int idx, SonosItem item) {
+		System.out.println("("+idx+")\t    id: " + item.idURI);
+		System.out.println("\t   res: " + item.playURI);
+		System.out.println("\t title: " + item.title);
+		if (item.album != null)
+			System.out.println("\t album: " + item.album);
+		if (item.artist != null)
+			System.out.println("\tartist: " + item.artist);
 	}
 }

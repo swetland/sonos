@@ -63,7 +63,7 @@ public class XML {
 	public void init(ByteBuffer in) {
 		buf.clear();
 		CoderResult cr = decoder.decode(in, buf, true);
-		System.err.println("cr = " + cr);
+		// TODO: error handling
 		buf.flip();
 		reset();
 	}
@@ -79,7 +79,7 @@ public class XML {
 		tmp.init(xml, 0, 0);
 		offset = 0;
 		nextTag();
-		System.err.println("XML reset, "+buf.length()+" bytes.");
+		//System.err.println("XML reset, "+buf.length()+" bytes.");
 	}
 	public void rewind() {
 		offset = 0;

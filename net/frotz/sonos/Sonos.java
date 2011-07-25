@@ -189,6 +189,7 @@ public class Sonos {
 		while (result.more()) {
 			String thing;
 			n++;
+			item.reset();
 			item.idURI = result.getAttr("id").copy();
 			try { 
 				result.open("item");

@@ -169,7 +169,7 @@ public class Sonos {
 				/* descend in to the contained results */
 				value.unescape();
 				xml.init(value);
-				n += processBrowseResults(xml,_id,cb);
+				n = processBrowseResults(xml,n,_id,cb);
 			} catch (Exception x) {
 				System.err.println("OOPS " + x);
 				x.printStackTrace();
@@ -177,9 +177,8 @@ public class Sonos {
 			}
 		} while (n < total);
 	}
-	int processBrowseResults(XML result, String _id, SonosListener cb) throws XML.Oops {
+	int processBrowseResults(XML result, int n, String _id, SonosListener cb) throws XML.Oops {
 		SonosItem item = this.item;
-		int n = 0;
 		if (trace_browse) {
 			System.out.println("--------- list -----------");
 			result.print(System.out,1024);

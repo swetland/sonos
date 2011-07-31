@@ -1,0 +1,38 @@
+
+There are two kinds of identifiers in the world of Sonos:
+1. objectID, which is what the Browse call deals in
+2. resourceID, which is what represents a song or playlist
+
+A zoneplayer's state is a resource URI (CurrentURI) which represents 
+the song or playlist it's playing, the number of tracks in that 
+resource (1 for a song, N for a playlist), and the current track, 
+along with the play state (STOPPED, PLAYING, etc) and the play mode 
+(NORMAL, SHUFFLE, etc).
+
+The AVTransport actions Play, Pause, Stop, Next, Previous, Seek act on
+this player state.  SetAVTransportURI can be used to change the resource
+URI that the player is playing from.  This will cause the player to enter
+the STOPPED state.
+
+The Browse call returns both ObjectID and ResourceID for items, allowing
+them to be both browsed and played.  The AVTransport can be queried for
+its CurrentURI (via GetMediaInfo) but the ObjectID is not returned.  If
+you don't know the ResourceID:ObjectID mapping there is no easy way to
+find it.
+
+objectIDs exist in hierarchies:
+S: is the root of all filesystems the sonos can play from
+A: is the root of all metadata hierarchies (A:ARTIST, A:ALBUM, ...)
+Q: is the root of "The Queue" which is always Q:0
+SQ: is the root of saved queues (user created playlists)
+
+Q:0 can be manipulated by the actions AddURIToQueue, RemoveTrackFromQueue,
+RemoveAllTracksFromQueue, ReorderTracksInQueue.  Its contents may be
+saved to a SQ:# saved queue (created new or overwritten existing) using
+the SaveQueue action.  The SetAVTransportURI call which switches what's
+being played never modifies the contents of Q:0 -- you can switch to
+an album or any other playlist, and switch back to the main queue later
+without losing its state.
+
+
+

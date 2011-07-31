@@ -1,12 +1,14 @@
 
-SRCS := $(wildcard net/frotz/sonos/*.java)
+SRCS := $(shell find net -name \*.java)
 
 all: sonos.jar
 
 sonos.jar: $(SRCS)
-	javac $(SRCS)
+	rm -rf out
+	mkdir -p out
+	javac -d out $(SRCS)
 	rm -rf sonos.jar
-	zip -qr sonos.jar META-INF net -x \*.java
+	jar cfe sonos.jar net.frotz.sonos.app -C out/ .
 
 clean::
-	rm -rf net/frotz/sonos/*.class sonos.jar
+	rm -rf out sonos.jar

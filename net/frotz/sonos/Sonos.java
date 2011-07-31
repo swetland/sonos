@@ -22,20 +22,21 @@ public class Sonos {
 	SoapRPC.Endpoint xport;
 	SoapRPC.Endpoint media;
 	SoapRPC.Endpoint render;
+	SoapRPC.Endpoint props;
 	SoapRPC rpc;
 	XMLSequence name, value;
 	SonosItem item;
 
-	public Sonos(byte[] ip) {
-		init(ip);
+	public Sonos(String host) {
+		init(host);
 	}
 
-	void init(byte[] ip) {
+	void init(String host) {
 		name = new XMLSequence();
 		value = new XMLSequence();
 		item = new SonosItem();
 
-		rpc = new SoapRPC(ip, 1400);
+		rpc = new SoapRPC(host, 1400);
 
 		xport = new SoapRPC.Endpoint(
 			"AVTransport:1",
@@ -46,11 +47,26 @@ public class Sonos {
 		render = new SoapRPC.Endpoint(
 			"RenderingControl:1",
 			"/MediaRenderer/RenderingControl/Control");
+		props = new SoapRPC.Endpoint(
+			"DeviceProperties:1",
+			"/DeviceProperties/Control");
 	}
 
 	public void trace_io(boolean x) { rpc.trace_io = x; }
 	public void trace_reply(boolean x) { rpc.trace_reply = x; }
 	public void trace_browse(boolean x) { trace_browse = x; }
+
+	public String getZoneName() {
+		rpc.prepare(props,"GetZoneAttributes");
+		XML xml = rpc.invoke();
+		try {
+			xml.open("u:GetZoneAttributesResponse");
+			return xml.read("CurrentZoneName").toString();
+			//xml.read("CurrentIcon").toString();
+		} catch (XML.Oops x) {
+			return null;
+		}
+	}
 
 	/* volume controls */
 	public void volume() {
@@ -69,7 +85,20 @@ public class Sonos {
 		rpc.invoke();
 	}
 
+/* GetMediaInfo:
+ * NrTracks and CurrentURI indicate active queue and size 
+ */
+/* CurrentTransportState STOPPED | PAUSED_PLAYBACK | PLAYING | */
 	/* transport controls */
+	public void getPosition() {
+		rpc.prepare(xport,"GetMediaInfo");
+		//rpc.prepare(xport,"GetPositionInfo");
+		//rpc.prepare(xport,"GetTransportInfo");
+		rpc.simpleTag("InstanceID",0);
+		XML xml = rpc.invoke();
+		xml.print(System.out,1024);
+		xml.rewind();
+	}
 	public void play() {
 		rpc.prepare(xport,"Play");
 		rpc.simpleTag("InstanceID",0);
@@ -108,6 +137,23 @@ public class Sonos {
 	}
 
 	/* queue management */
+	public void save(String name, String uri) {
+		rpc.prepare(xport,"SaveQueue");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("Title",name); /* not unique */
+		rpc.simpleTag("ObjectID",uri); /* "" for new */
+		XML xml = rpc.invoke();
+		/* saved queues are named SQ:# */
+		xml.print(System.out,1024);
+		xml.rewind();
+	}
+	public void set(String uri) {
+		rpc.prepare(xport,"SetAVTransportURI");
+		rpc.simpleTag("InstanceID",0);
+		rpc.simpleTag("CurrentURI",uri);
+		rpc.simpleTag("CurrentURIMetaData","");
+		rpc.invoke();
+	}
 	public void add(String uri) {
 		rpc.prepare(xport,"AddURIToQueue");
 		rpc.simpleTag("InstanceID",0);
@@ -139,6 +185,13 @@ public class Sonos {
 		rpc.invoke();
 	}
 
+	/* can be used to delete saved queues (SQ:*) */
+	public void destroy(String id) {
+		rpc.prepare(media,"DestroyObject");
+		rpc.simpleTag("ObjectID", id);
+		rpc.invoke();
+	}
+
 	/* content service calls */
 	public void browse(String _id, SonosListener cb) {
 		int total, count, updateid;
@@ -149,7 +202,7 @@ public class Sonos {
 			rpc.prepare(media,"Browse");
 			rpc.simpleTag("ObjectID",_id);
 			rpc.simpleTag("BrowseFlag","BrowseDirectChildren"); // BrowseMetadata
-			rpc.simpleTag("Filter","");
+			rpc.simpleTag("Filter","*");
 			rpc.simpleTag("StartingIndex", n);
 			rpc.simpleTag("RequestedCount",100);
 			rpc.simpleTag("SortCriteria","");

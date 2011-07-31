@@ -55,13 +55,13 @@ class SoapRPC {
 	/* hold remote information while assembling message */
 	String xmethod, xservice, xpath;
 
-	public SoapRPC(byte[] host, int port) {
+	public SoapRPC(String host, int port) {
 		init(host,port);
 	}
 
-	void init(byte[] host, int port) {
+	void init(String host, int port) {
 		try {
-			addr = InetAddress.getByAddress(host);
+			addr = InetAddress.getByName(host);
 		} catch (Exception x) {
 		}
 		this.port = port;

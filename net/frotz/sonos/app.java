@@ -19,17 +19,38 @@ package net.frotz.sonos;
 public class app implements SonosListener {
 	public static void main(String args[]) {
 		app a = new app();
-		Sonos sonos = new Sonos(new byte[] { 10, 0, 0, (byte) 199});
-		String cmd = args[0];
+		Sonos sonos = new Sonos("10.0.0.199");
 
 		//sonos.trace_io(true);
 		//sonos.trace_reply(true);
 		//sonos.trace_browse(true);
 
-		if (cmd.equals("play")) {
+		if (args.length == 0) {
+			sonos.getPosition();
+			return;
+		}
+
+		String cmd = args[0];
+		if (cmd.equals("discover")) {
+			Discover d = new Discover();
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException x) {
+			}
+			d.done();
+			String[] list = d.getList();
+			for (int n = 0; n < list.length; n++) {
+				Sonos s = new Sonos(list[n]);
+				String name = s.getZoneName();
+				if (name != null)
+					System.out.println(list[n] + " - " + name);
+			}
+		} else if (cmd.equals("play")) {
 			sonos.play();
 			sonos.play();
 			sonos.play();
+		} else if (cmd.equals("save")) {
+			sonos.save(args[1],"SQ:3");
 		} else if (cmd.equals("pause")) {
 			sonos.pause();
 		} else if (cmd.equals("next")) {
@@ -40,6 +61,8 @@ public class app implements SonosListener {
 			sonos.browse(args[1],a);
 		} else if (cmd.equals("add")) {
 			sonos.add(args[1]);
+		} else if (cmd.equals("set")) {
+			sonos.set(args[1]);
 		} else if (cmd.equals("remove")) {
 			sonos.remove(args[1]);
 		} else if (cmd.equals("removeall")) {

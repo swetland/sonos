@@ -2,17 +2,17 @@ package net.frotz.sonos;
 
 
 public class SonosItem {
-	public CharSequence title;
-	public CharSequence album;
-	public CharSequence artist;
-	public CharSequence playURI; /* to enqueue */
-	public CharSequence idURI;   /* for browse/list */
+	public XMLSequence title;
+	public XMLSequence album;
+	public XMLSequence artist;
+	public XMLSequence playURI; /* to enqueue */
+	public XMLSequence idURI;   /* for browse/list */
 
 	public void reset() {
-		title = null;
-		album = null;
-		artist = null;
-		playURI = null;
-		idURI= null;
+		title.adjust(0,0);
+		album.adjust(0,0);
+		artist.adjust(0,0);
+		playURI.adjust(0,0);
+		idURI.adjust(0,0);
 	}
 }

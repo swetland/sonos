@@ -35,6 +35,11 @@ public class Sonos {
 		name = new XMLSequence();
 		value = new XMLSequence();
 		item = new SonosItem();
+		item.title = new XMLSequence();
+		item.artist = new XMLSequence();
+		item.album = new XMLSequence();
+		item.idURI = new XMLSequence();
+		item.playURI = new XMLSequence();
 
 		rpc = new SoapRPC(host, 1400);
 
@@ -229,6 +234,7 @@ public class Sonos {
 				break;
 			}
 		} while (n < total);
+		cb.updateDone(_id);
 	}
 	int processBrowseResults(XML result, int n, String _id, SonosListener cb) throws XML.Oops {
 		SonosItem item = this.item;
@@ -242,7 +248,7 @@ public class Sonos {
 			String thing;
 			n++;
 			item.reset();
-			item.idURI = result.getAttr("id").copy();
+			item.idURI.init(result.getAttr("id"));
 			try { 
 				result.open("item");
 				thing = "item";	
@@ -252,19 +258,19 @@ public class Sonos {
 			}
 			while (result.tryRead(name,value)) {
 				if ("dc:title".contentEquals(name)) {
-					item.title = value.unescape().copy();
+					item.title.init(value.unescape());
 					continue;
 				}
 				if ("dc:creator".contentEquals(name)) {
-					item.artist = value.unescape().copy();
+					item.artist.init(value.unescape());
 					continue;
 				}
 				if ("upnp:album".contentEquals(name)) {
-					item.album = value.unescape().copy();
+					item.album.init(value.unescape());
 					continue;
 				}
 				if ("res".contentEquals(name)) {
-					item.playURI = value.unescape().copy();
+					item.playURI.init(value.unescape());
 					continue;
 				}
 			}

@@ -92,6 +92,10 @@ public class XML {
 
 		tmp.offset = 0;
 		tmp.count = end;
+
+		/* hack: work around Android bug */
+		mAttr.reset(tmp);
+
 		while (mAttr.find(off)) {
 			//System.err.println("ANAME: " + mAttr.group(1));
 			//System.err.println("ATEXT: " + mAttr.group(2));
@@ -251,6 +255,9 @@ public class XML {
 	}
 
 	void nextTag() {
+		/* hack: work around Android bug */
+		mTag.reset(seq);
+
 		/* can't deal with comments or directives */
 		if (!mTag.find(offset)) {
 			tag.adjust(0,0);

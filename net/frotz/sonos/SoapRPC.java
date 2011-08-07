@@ -185,6 +185,8 @@ class SoapRPC {
 			xml.open("s:Body");
 			return xml;
 		} catch (XML.Oops x) {
+			System.err.println("OOPS " + x);
+			x.printStackTrace();
 			return null;
 		}
 	}

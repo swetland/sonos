@@ -54,6 +54,15 @@ class XMLSequence implements CharSequence {
 				return false;
 		return true;
 	}
+	boolean eq(String s) {
+		int len = s.length();
+		if (len != count)
+			return false;
+		for (int n = 0; n < len; n++)
+			if (s.charAt(n) != data[offset+n])
+				return false;
+		return true;
+	}
 	/* modifies the sequence in-place, escaping basic entities */
 	public XMLSequence unescape() {
 		count = unescape(data, offset) - offset;

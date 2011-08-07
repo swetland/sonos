@@ -20,6 +20,7 @@ class XMLSequence implements CharSequence {
 	char[] data;
 	int offset;
 	int count;
+	int pos;
 
 	public XMLSequence() { }
 
@@ -27,15 +28,18 @@ class XMLSequence implements CharSequence {
 		this.data = data;
 		offset = start;
 		count = end - start;
+		pos = offset;
 	}
 	public void init(XMLSequence s) {
 		data = s.data;
 		offset = s.offset;
 		count = s.count;
+		pos = offset;
 	}
 	void adjust(int start, int end) {
 		offset = start;
 		count = end - start;
+		pos = offset;
 	}
 	boolean eq(XMLSequence other) {
 		int count = this.count;
@@ -115,8 +119,9 @@ class XMLSequence implements CharSequence {
 			}
 			break;
 		}
+		pos = offset;
 	}
-			
+
 	/* CharSequence interface */
 	public int length() {
 		return count;
@@ -135,5 +140,122 @@ class XMLSequence implements CharSequence {
 		if (data == null)
 			return "";
 		return new String(data, offset, count);
+	}
+
+	/* Parsing Tools */
+
+	/* returns next offset after a match with c, or -1 if no match */
+	int next(char c) {
+		char[] x = data;
+		int n = pos;
+		int end = offset + count;
+		while (n < end) {
+			if (x[n++] == c) {
+				pos = n;
+				return n;
+			}
+		}
+		return -1;
+	}
+
+	/* advance pos beyond whitespace, returns updated position */
+	int space() {
+		char[] x = data;
+		int n = pos;
+		int end = offset + count;
+		while (n < end) {
+			switch (x[n]) {
+			case ' ':
+			case '\t':
+			case '\r':
+			case '\n':
+				n++;
+				break;
+			default:
+				pos = n;
+				return n;
+			}
+		}
+		pos = n;
+		return n;
+	}
+
+	/* matches an XML element or attribute name, returns length (-1==failure), pos will be after */
+	int name() {
+		char[] x = data;
+		int n = pos;
+		int end = offset + count;
+		if (n >= end)
+			return -1;
+		try {
+			if (xName0[x[n]] == 0)
+				return -1;
+		} catch (ArrayIndexOutOfBoundsException e) {
+			return -1;
+		}
+		while (++n < end) {
+			try {
+				if(xNameX[x[n]] == 1)
+					continue;
+			} catch (ArrayIndexOutOfBoundsException e) { }
+			break;
+		}
+		end = n - pos;
+		pos = n;
+		return end;
+	}
+
+	/* match =" returning position or -1 if no match */
+	int value() {
+		char[] x = data;
+		int n = pos;
+		int end = offset + count;
+		if (n >= end)
+			return -1;
+		if (x[n++] != '=')
+			return -1;
+		if (n >= end)
+			return -1;
+		if (x[n++] != '"')
+			return -1;
+		pos = n;
+		return n;
+	}
+
+	/* returns false (and advances) if data[pos] == '/', otherwise true */
+	boolean isOpen() {
+		if (data[pos] == '/') {
+			pos++;
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	static char xName0[];
+	static char xNameX[];
+
+	static {
+		xName0 = new char[127];
+		xNameX = new char[127];
+		int n;
+		for (n = 'a'; n <= 'z'; n++) {
+			xName0[n] = 1;
+			xNameX[n] = 1;
+		}
+		for (n = 'A'; n <= 'Z'; n++) {
+			xName0[n] = 1;
+			xNameX[n] = 1;
+		}
+		xName0['_'] = 1;
+		xName0[':'] = 1;
+
+		for (n = '0'; n <= '9'; n++) {
+			xNameX[n] = 1;
+		}
+		xNameX['_'] = 1;
+		xNameX[':'] = 1;
+		xNameX['-'] = 1;
+		xNameX['.'] = 1;
 	}
 }

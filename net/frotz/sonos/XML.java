@@ -31,15 +31,19 @@ import java.io.PrintStream;
 // TODO: &apos; -> '
 
 public class XML {
+	private static final boolean DEBUG = false;
+
 	XMLSequence seq; /* entire buffer */
-	XMLSequence tag; /* most recent tag */
 	XMLSequence tmp; /* for content return */
 	char[] xml;
-	int offset;
-	int count;
 
-	Matcher mTag;
-	Matcher mAttr;
+	/* offset and length of the name of the current tag */
+	int tag_off;
+	int tag_len;
+	/* offset and length of the attr area of the current tag */
+	int att_off;
+	int att_len;
+	/* true if the current tag is <...>, false if </...> */
 	boolean isOpen;
 
 	CharsetDecoder decoder;
@@ -50,10 +54,7 @@ public class XML {
 	public XML(int size) {
 		decoder = cs.newDecoder();
 		seq = new XMLSequence();
-		tag = new XMLSequence();
 		tmp = new XMLSequence();
-		mTag = pTag.matcher(seq);
-		mAttr = pAttr.matcher(tmp);
 		xml = new char[size];
 		buf = CharBuffer.wrap(xml);	
 	}
@@ -73,40 +74,48 @@ public class XML {
 	}
 	void reset() {
 		seq.init(xml, buf.arrayOffset(), buf.length());
-		tag.init(xml, 0, 0);
 		tmp.init(xml, 0, 0);
-		offset = 0;
 		nextTag();
-		//System.err.println("XML reset, "+buf.length()+" bytes.");
 	}
 	public void rewind() {
-		offset = 0;
+		seq.pos = seq.offset;
 		nextTag();
 	}
 	
 	public XMLSequence getAttr(String name) {
-		int off = mTag.start(3);
-		int end = off + mTag.end(3);
+		int nlen = name.length();
+		int n;
 
-		tmp.offset = 0;
-		tmp.count = end;
+		tmp.offset = att_off;
+		tmp.count = att_len;
+		tmp.pos = att_off;
 
-		/* hack: work around Android bug */
-		mAttr.reset(tmp);
+		for (;;) {
+			int off = tmp.space();
+			int len = tmp.name();
+			if (len < 0)
+				break;
+			if (DEBUG) System.err.println("ANAME: ["+new String(tmp.data,off,len)+"]");
+			int voff = tmp.value();
+			if (voff < 0)
+				break;
+			int vend = tmp.next('"');
+			if (vend < 0)
+				break;
+			vend--;
+			if (DEBUG) System.err.println("ATEXT: ["+new String(tmp.data,voff,vend-voff)+"]");
 
-		while (mAttr.find(off)) {
-			//System.err.println("ANAME: " + mAttr.group(1));
-			//System.err.println("ATEXT: " + mAttr.group(2));
-			tmp.offset = mAttr.start(1);
-			tmp.count = mAttr.end(1) - tmp.offset;
-			if (name.contentEquals(tmp)) {
-				tmp.offset = mAttr.start(2);
-				tmp.count = mAttr.end(2) - tmp.offset;
-				return tmp;
-			}
-			tmp.offset = 0;
-			tmp.count = end;
-			off = mAttr.end();
+			if (nlen != len)
+				continue;
+			for (n = 0; n < len; n++)
+				if (name.charAt(n) != tmp.data[off+n]) /* XXX yuck */
+					break;
+			if (nlen != n)
+				continue;
+
+			tmp.offset = voff;
+			tmp.count = vend - voff;
+			return tmp;
 		}
 		return null;
 	}
@@ -118,7 +127,7 @@ public class XML {
 		char[] data = xml;
 		int n;
 		tmp.data = data;
-		n = tmp.offset = mTag.end();
+		n = tmp.offset = (att_off + att_len);
 		try {
 			for (;;) {
 				if (data[n] == '<')
@@ -173,26 +182,35 @@ public class XML {
 		return isOpen;
 	}
 
+	public boolean tag_eq(CharSequence name) {
+		if (name.length() != tag_len)
+			return false;
+		for (int n = 0; n < tag_len; n++)
+			if (name.charAt(n) != seq.data[tag_off + n])  /* XXX yuck */
+				return false;
+		return true;
+	}
 	/* require <tag> and consume it */
 	public void open(String name) throws XML.Oops {
-		if (!isOpen || !name.contentEquals(tag))
+		if (!isOpen || !tag_eq(name))
 			throw new XML.Oops("expecting <"+name+"> but found " + str());
 		nextTag();
 	}
 
 	/* require </tag> and consume it */
 	public void close(String name) throws XML.Oops {
-		if (isOpen || !name.contentEquals(tag))
+		if (isOpen || !tag_eq(name))
 			throw new XML.Oops("expecting </"+name+"> but found " + str());
 		nextTag();
 	}
 
 	/* require <tag> text </tag> and return text */
 	public XMLSequence read(String name) throws XML.Oops {
-		int start = mTag.end(); 
+		int start = att_off + att_len;
 		open(name);
-		tmp.adjust(start, mTag.start());
+		tmp.adjust(start, tag_off - 2);
 		close(name);
+		if (DEBUG) System.err.println("VAL ["+tmp+"]");
 		return tmp;
 	}
 
@@ -202,42 +220,41 @@ public class XML {
 			return false;
 
 		name.data = xml;
-		name.offset = tag.offset;
-		name.count = tag.count;
+		name.offset = tag_off;
+		name.count = tag_len;
 
 		value.data = xml;
-		value.offset = mTag.end();
-
+		value.offset = att_off + att_len;
 		nextTag();
+		value.count = tag_off - value.offset - 2;
 
-		value.count = mTag.start() - value.offset;
 		close(name);
 
 		return true;
 	}
 	public void close(XMLSequence name) throws XML.Oops {
 		if (isOpen)
-			throw new XML.Oops("1expected </"+name+">, found <"+tag+">");
-		if (!name.eq(tag))
-			throw new XML.Oops("2expected </"+name+">, found </"+tag+">");
+			throw new XML.Oops("1expected </"+name+">, found "+str());
+		if (!tag_eq(name))
+			throw new XML.Oops("2expected </"+name+">, found "+str());
 		nextTag();
 	}
 
 	public boolean tryRead(String name, XMLSequence value) throws XML.Oops {
-		if (!isOpen || !name.contentEquals(tag))
+		if (!isOpen || !tag_eq(name))
 			return false;
 		value.data = xml;
-		value.offset = mTag.end();
+		value.offset = att_off + att_len;
 		nextTag();
-		value.count = mTag.start() - value.offset;
+		value.count = tag_off - value.offset;
 		close(name);
 		return true;
 	}
 
 	/* eat the current tag and any children */
 	public void consume() throws XML.Oops {
-		tmp.offset = mTag.start(2);
-		tmp.count = mTag.end(2) - tmp.offset;
+		tmp.offset = tag_off;
+		tmp.count = tag_len;
 		nextTag();
 		while (isOpen)
 			consume();
@@ -247,30 +264,42 @@ public class XML {
 	/* format current begin/end tag as a string. for error messages */
 	String str() {
 		if (isOpen)
-			return "<" + tag + ">";
+			return "<" + new String(seq.data, tag_off, tag_len) + ">";
 		else
-			return "</" + tag + ">";
+			return "</" + new String(seq.data, tag_off, tag_len) + ">";
 	}
 
 	void nextTag() {
-		/* hack: work around Android bug */
-		mTag.reset(seq);
-
 		/* can't deal with comments or directives */
-		if (!mTag.find(offset)) {
-			tag.adjust(0,0);
+		int off = seq.next('<');
+		boolean opn = seq.isOpen();
+		int len = seq.name();
+		int att = seq.pos;
+		int nxt = seq.next('>');
+
+		/* don't advance if we're in a strange state */
+		if ((off < 0) || (len < 0) || (nxt < 0))
 			return;
+
+		if (!opn)
+			off++;
+
+		tag_off = off;
+		tag_len = len;
+		isOpen = opn;
+
+		att_off = att;
+		att_len = nxt - att;
+	
+		if (DEBUG) {	
+			if (opn) {
+				System.err.println("TAG ["+new String(seq.data,tag_off,tag_len)+"]");
+				System.err.println("ATR ["+new String(seq.data,att_off,att_len)+"]");
+			} else {
+				System.err.println("tag ["+new String(seq.data,tag_off,tag_len)+"]");
+			}
 		}
-
-		isOpen = (mTag.start(1) == -1);
-		tag.adjust(mTag.start(2), mTag.end(2));
-		offset = mTag.end();
 	}
-
-	/* G1: \  G2: tagname  G3: attributes */
-	static Pattern pTag = Pattern.compile("<(/)?([a-zA-Z:_][a-zA-Z0-9:\\-\\._]*)([^>]*)>",Pattern.DOTALL);
-	/* G1: name  G2: value */
-	static Pattern pAttr = Pattern.compile("\\s*([a-zA-Z:_][a-zA-Z0-9:\\-\\._]*)=\"([^\"]*)\"");
 
 	static Charset cs = Charset.forName("UTF-8");
 

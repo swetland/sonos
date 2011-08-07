@@ -257,19 +257,19 @@ public class Sonos {
 				thing = "container";
 			}
 			while (result.tryRead(name,value)) {
-				if ("dc:title".contentEquals(name)) {
+				if (name.eq("dc:title")) {
 					item.title.init(value.unescape());
 					continue;
 				}
-				if ("dc:creator".contentEquals(name)) {
+				if (name.eq("dc:creator")) {
 					item.artist.init(value.unescape());
 					continue;
 				}
-				if ("upnp:album".contentEquals(name)) {
+				if (name.eq("upnp:album")) {
 					item.album.init(value.unescape());
 					continue;
 				}
-				if ("res".contentEquals(name)) {
+				if (name.eq("res")) {
 					item.playURI.init(value.unescape());
 					continue;
 				}

@@ -132,6 +132,8 @@ class XMLSequence implements CharSequence {
 		return x;
 	}
 	public String toString() {
+		if (data == null)
+			return "";
 		return new String(data, offset, count);
 	}
 }

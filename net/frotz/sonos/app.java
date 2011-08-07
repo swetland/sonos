@@ -81,6 +81,7 @@ public class app implements SonosListener {
 			System.exit(-1);
 		}
 	}
+	public void updateDone(String id) { }
 	public void updateItem(String id, int idx, SonosItem item) {
 		System.out.println("("+idx+")\t    id: " + item.idURI);
 		System.out.println("\t   res: " + item.playURI);

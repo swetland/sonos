@@ -39,7 +39,6 @@ public class XML {
 	int count;
 
 	Matcher mTag;
-	Matcher mEntity;
 	Matcher mAttr;
 	boolean isOpen;
 
@@ -54,7 +53,6 @@ public class XML {
 		tag = new XMLSequence();
 		tmp = new XMLSequence();
 		mTag = pTag.matcher(seq);
-		mEntity = pEntity.matcher(tmp);
 		mAttr = pAttr.matcher(tmp);
 		xml = new char[size];
 		buf = CharBuffer.wrap(xml);	
@@ -273,8 +271,6 @@ public class XML {
 	static Pattern pTag = Pattern.compile("<(/)?([a-zA-Z:_][a-zA-Z0-9:\\-\\._]*)([^>]*)>",Pattern.DOTALL);
 	/* G1: name  G2: value */
 	static Pattern pAttr = Pattern.compile("\\s*([a-zA-Z:_][a-zA-Z0-9:\\-\\._]*)=\"([^\"]*)\"");
-	/* G1: pretext  G2: entity  G3: entity body */
-	static Pattern pEntity = Pattern.compile("([^&]*)(&([^;]*);)");
 
 	static Charset cs = Charset.forName("UTF-8");
 

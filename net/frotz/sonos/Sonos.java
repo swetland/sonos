@@ -74,11 +74,23 @@ public class Sonos {
 	}
 
 	/* volume controls */
-	public void volume() {
+	public int volume() {
+		int n;
 		rpc.prepare(render,"GetVolume");
 		rpc.simpleTag("InstanceID",0);
 		rpc.simpleTag("Channel", "Master"); // Master | LF | RF
-		rpc.invoke();
+		XML xml = rpc.invoke();
+		try {
+			xml.open("u:GetVolumeResponse");
+			n = Integer.parseInt(xml.read("CurrentVolume").toString());
+			if (n < 0)
+				n = 0;
+			if (n > 100)
+				n = 100;
+			return n;
+		} catch (XML.Oops x) {
+			return -1;
+		}
 	}
 	public void volume(int vol) { // 0-100
 		if ((vol < 0) || (vol > 100))
@@ -272,6 +284,11 @@ public class Sonos {
 				if (name.eq("res")) {
 					item.playURI.init(value.unescape());
 					continue;
+				}
+				if (name.eq("upnp:class")) {
+					/* object.item.... vs object.container... */
+					if (value.charAt(7) == 'i')
+						item.flags |= item.SONG;
 				}
 			}
 			cb.updateItem(_id, n, item);

@@ -22,8 +22,8 @@ public class app implements SonosListener {
 		Sonos sonos = new Sonos("10.0.0.199");
 
 		//sonos.trace_io(true);
-		//sonos.trace_reply(true);
-		//sonos.trace_browse(true);
+		sonos.trace_reply(true);
+		sonos.trace_browse(true);
 
 		if (args.length == 0) {
 			sonos.getPosition();
@@ -72,10 +72,12 @@ public class app implements SonosListener {
 		} else if (cmd.equals("track")) {
 			sonos.seekTrack(Integer.parseInt(args[1]));
 		} else if (cmd.equals("volume")) {
-			if (args.length == 1)
-				sonos.volume();
-			else
+			if (args.length == 1) {
+				int n = sonos.volume();
+				System.out.println(n);
+			} else {
 				sonos.volume(Integer.parseInt(args[1]));
+			}
 		} else {
 			System.err.println("Unknown command '"+cmd+"'");
 			System.exit(-1);

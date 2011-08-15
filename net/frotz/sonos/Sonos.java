@@ -164,12 +164,25 @@ public class Sonos {
 		xml.print(System.out,1024);
 		xml.rewind();
 	}
-	public void set(String uri) {
+	public void setTransportURI(String uri) {
 		rpc.prepare(xport,"SetAVTransportURI");
 		rpc.simpleTag("InstanceID",0);
 		rpc.simpleTag("CurrentURI",uri);
 		rpc.simpleTag("CurrentURIMetaData","");
 		rpc.invoke();
+	}
+	public String getTransportURI() {
+		rpc.prepare(xport,"GetMediaInfo");
+		rpc.simpleTag("InstanceID",0);
+		XML xml = rpc.invoke();
+		try {
+			xml.open("u:GetMediaInfoResponse");
+			xml.read("NrTracks");
+			xml.read("MediaDuration");
+			return xml.read("CurrentURI").toString();
+		} catch (XML.Oops x) {
+			return null;
+		}
 	}
 	public void add(String uri) {
 		rpc.prepare(xport,"AddURIToQueue");

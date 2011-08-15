@@ -61,8 +61,11 @@ public class app implements SonosListener {
 			sonos.browse(args[1],a);
 		} else if (cmd.equals("add")) {
 			sonos.add(args[1]);
-		} else if (cmd.equals("set")) {
-			sonos.set(args[1]);
+		} else if (cmd.equals("setxport")) {
+			sonos.setTransportURI(args[1]);
+		} else if (cmd.equals("getxport")) {
+			String x = sonos.getTransportURI();
+			System.out.println(x);
 		} else if (cmd.equals("remove")) {
 			sonos.remove(args[1]);
 		} else if (cmd.equals("removeall")) {

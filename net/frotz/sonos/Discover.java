@@ -119,7 +119,7 @@ public class Discover extends Thread {
 	void init(Discover.Listener cb) {
 		active = true;
 		this.callback = cb;
-		pLocation = Pattern.compile("^LOCATION:\\s*http://(.*):1400/xml/zone_player.xml$",Pattern.MULTILINE | Pattern.CASE_INSENSITIVE);
+		pLocation = Pattern.compile("^LOCATION:\\s*http://(.*):1400/xml/device_description.xml$",Pattern.MULTILINE | Pattern.CASE_INSENSITIVE);
 		start();
 	}
 	public static interface Listener {
